@@ -10,6 +10,9 @@ urlpatterns = [
     url(r'^v1/get-recent-answers/$', bw_rest_api_get_recent_answers),
     url(r'^v1/create-problem/$', bw_rest_api_create_new_problem),
     url(r'^v1/get-problem/(?P<slug>\S+)/$', bw_rest_api_get_problem),
-    url(r'^v1/unpublish-problem/(?P<slug>\S+)/$', bw_rest_api_unpublish_problem),
     url(r'^v1/get-responses/(?P<slug>\S+)/$', bw_rest_api_get_responses),
+
+    #Debug only
+    url(r'^v1/unpublish-problem/(?P<slug>\S+)/$', bw_rest_api_unpublish_problem),
+    url(r'^v1/update-count/(?P<slug>\S+)/$', bw_rest_api_update_count),
 ]

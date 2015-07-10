@@ -215,7 +215,6 @@ class SubmitPollAnswer(APIView):
                 Poll.objects.filter( article__slug=slug ).update(abstain_count=F('abstain_count')+1)
 
             poll.article.last_action = datetime.now()
-            new_vote = True
             poll.article.save()
             vote_cast.send( sender=Poll, poll=poll, response=response, new_vote=new_vote, voter=request.user )
             return Response( { "error": False } )
@@ -401,32 +400,6 @@ class GetProblem(APIView):
 
 bw_rest_api_get_problem = GetProblem.as_view()
 
-class UnpublishProblem(APIView):
-    """
-    Unpublish problem - only for debug
-
-    * Requires token authentication.
-    * Only authenticated are able to access this view.
-    """
-    authentication_classes = (authentication.TokenAuthentication,)
-    permission_classes = (permissions.IsAuthenticated,)
-
-    def get(self, request, slug, format=None):
-        """
-        Get a Problem with given slug
-        """
-        try:
-            problem = get_object_or_none( Poll, article__slug=slug )
-            if not problem:
-                return Response( { "error": True, "message": "No such Poll" } )                 
-            if not problem.article.unpublished:
-                problem.article.toggle_publish()
-                return Response({ "error": False  })
-            return Response({ "error": True, 'message': 'Already unpublished' })
-        except Exception as e:
-            return Response( { "error": True, "message": e.message } )         
-
-bw_rest_api_unpublish_problem = UnpublishProblem.as_view()
 
 class GetResponses(APIView):
     """
@@ -482,5 +455,60 @@ class GetResponses(APIView):
     
 
 bw_rest_api_get_responses = GetResponses.as_view()
+
+### These are for debugging only. Should not be kept for production
+
+class UnpublishProblem(APIView):
+    """
+    Unpublish problem - only for debug
+
+    * Requires token authentication.
+    * Only authenticated are able to access this view.
+    """
+    authentication_classes = (authentication.TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request, slug, format=None):
+        """
+        Get a Problem with given slug
+        """
+        try:
+            problem = get_object_or_none( Poll, article__slug=slug )
+            if not problem:
+                return Response( { "error": True, "message": "No such Poll" } )                 
+            if not problem.article.unpublished:
+                problem.article.toggle_publish()
+                return Response({ "error": False  })
+            return Response({ "error": True, 'message': 'Already unpublished' })
+        except Exception as e:
+            return Response( { "error": True, "message": e.message } )         
+
+bw_rest_api_unpublish_problem = UnpublishProblem.as_view()
+
+class UpdateCount(APIView):
+    """
+    Update count - only for debug
+
+    * Requires token authentication.
+    * Only authenticated are able to access this view.
+    """
+    authentication_classes = (authentication.TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request, slug, format=None):
+        """
+        Update count
+        """
+        try:
+            problem = get_object_or_none( Poll, article__slug=slug )
+            if not problem:
+                return Response( { "error": True, "message": "No such Poll" } )
+            problem.article.num_poll_responses = problem.pollresponse_set.count()
+            problem.article.save()
+            return Response({ "error": False  })
+        except Exception as e:
+            return Response( { "error": True, "message": e.message } )         
+
+bw_rest_api_update_count = UpdateCount.as_view()
 
                              
