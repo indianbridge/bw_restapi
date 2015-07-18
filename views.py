@@ -277,6 +277,43 @@ class GetRecentAnswers(APIView):
 
 bw_rest_api_get_recent_answers = GetRecentAnswers.as_view()
 
+class GetRecentPublished(APIView):
+    """
+    Get Recent Published Problems
+
+    * Requires token authentication.
+    * Only authenticated are able to access this view.
+    """
+    authentication_classes = (authentication.TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        """
+        Get Recent Published Problems
+        """
+        try:
+            start = int(request.POST.get( "start", 0))
+            end = int(request.POST.get( "end", 0))
+            end = end+1
+            recent_polls = Poll.objects.filter(article__author_id=request.user.id).exclude(article__unpublished=True).exclude(poll_type='Basic').order_by('-created')[start:end]
+            answers = []
+            for poll in recent_polls:
+                num_abstentions = poll.pollresponse_set.filter(answer__isnull=True).count()
+                num_answers = poll.article.num_poll_responses               
+                item = {
+                    'type': poll.poll_type,
+                    'slug': poll.article.slug,
+                    'lin_str': poll.hand.lin_str(),
+                    'num_answers': num_answers
+                }
+                answers.append(item)
+                    
+            return Response( { "error": False, "recent_answers": answers } )
+        except Exception as e:
+            return Response( { "error": True, "message": e.message } )         
+
+bw_rest_api_get_recent_published = GetRecentPublished.as_view()
+
 class CreateNewProblem(APIView):
     """
     Create New Problem
