@@ -244,12 +244,23 @@ class GetRecentAnswers(APIView):
             recent_answers = PollResponse.objects.filter(user_id=request.user.id).exclude(poll__article__unpublished=True).exclude(poll__poll_type='Basic').order_by('-modified')[start:end]
             answers = []
             for answer in recent_answers:
+                num_abstentions = answer.poll.pollresponse_set.filter(answer__isnull=True).count()
                 if answer.answer:
+                    answerCount = answer.answer.answer_count
                     answerText = answer.answer.answer_text
                 else:
+                    answerCount = num_abstentions
                     answerText = 'Abstain'
-
-                num_abstentions = answer.poll.pollresponse_set.filter(answer__isnull=True).count()
+                    
+                my_answer = {
+                    'public': answer.public
+                }
+                if answer.answer:
+                    my_answer['count'] = answer.answer.answer_count
+                    my_answer['answer'] = answer.answer.answer_text
+                else:
+                    my_answer['count'] = num_abstentions
+                    my_answer['answer'] = "Abstain"                 
                 num_answers = answer.poll.article.num_poll_responses
                 if answer.answer == None or (num_answers - num_abstentions) == 0:
                     answerPercent = 0
@@ -257,17 +268,27 @@ class GetRecentAnswers(APIView):
                     answerPercent = int( 100.0 * float( answer.answer.answer_count ) / (num_answers - num_abstentions)  + 0.5 )
                 user = answer.poll.article.author
                 name = user.first_name + ' ' + user.last_name
-                avatar = bw_get_thumbnail( user.profile.get_avatar(), '21x21').url                
+                avatar = bw_get_thumbnail( user.profile.get_avatar(), '21x21').url
+                answerMap = answer.poll.get_ordered_answers()
+                all_answers = []
+                for item in answerMap:
+                    if item.answer_count > 0:
+                        itemPercent = int( 100.0 * float( item.answer_count ) / (num_answers - num_abstentions)  + 0.5 )
+                        all_answers.append( { 'text': item.answer_text, 'count':item.answer_count, 'percent': itemPercent } )                
                 item = {
                     'type': answer.poll.poll_type,
                     'slug': answer.poll.article.slug,
                     'lin_str': answer.poll.hand.lin_str(),
                     'answer': answerText,
+                    'answer_count': answerCount,
                     'num_answers': num_answers,
+                    'num_abstentions': num_abstentions,
                     'percent': answerPercent,
                     'public': answer.public,
                     'avatar': avatar,
-                    'author': name
+                    'author': name,
+                    'answers': all_answers,
+                    'my_answer': my_answer
                 }
                 answers.append(item)
                     
@@ -299,12 +320,38 @@ class GetRecentPublished(APIView):
             answers = []
             for poll in recent_polls:
                 num_abstentions = poll.pollresponse_set.filter(answer__isnull=True).count()
-                num_answers = poll.article.num_poll_responses               
+                num_answers = poll.article.num_poll_responses
+                user = poll.article.author
+                name = user.first_name + ' ' + user.last_name
+                avatar = bw_get_thumbnail( user.profile.get_avatar(), '21x21').url
+                answerMap = poll.get_ordered_answers()
+                all_answers = []
+                for item in answerMap:
+                    if item.answer_count > 0:
+                        itemPercent = int( 100.0 * float( item.answer_count ) / (num_answers - num_abstentions)  + 0.5 )
+                        all_answers.append( { 'text': item.answer_text, 'count':item.answer_count, 'percent': itemPercent } )
+                my_response = get_object_or_none( PollResponse, user_id=request.user.id, poll_id=poll.id )        
+                my_answer = None
+                if my_response:
+                    my_answer = {
+                        'public': my_response.public
+                    }
+                    if my_response.answer:
+                        my_answer['count'] = my_response.answer.answer_count
+                        my_answer['answer'] = my_response.answer.answer_text
+                    else:
+                        my_answer['count'] = num_abstentions
+                        my_answer['answer'] = "Abstain"                            
                 item = {
                     'type': poll.poll_type,
                     'slug': poll.article.slug,
                     'lin_str': poll.hand.lin_str(),
-                    'num_answers': num_answers
+                    'num_answers': num_answers,
+                    'num_abstentions': num_abstentions,
+                    'avatar': avatar,
+                    'author': name,
+                    'answers': all_answers,
+                    'my_answer': my_answer                    
                 }
                 answers.append(item)
                     
@@ -419,9 +466,6 @@ class GetProblem(APIView):
             answerMap = problem.get_ordered_answers()
             answers = []
             num_abstentions = problem.pollresponse_set.filter(answer__isnull=True).count()
-            for answer in answerMap:
-                if answer.answer_count > 0:
-                    answers.append( { 'text': answer.answer_text, 'count':answer.answer_count } )
             my_answer = None
             if my_response:
                 my_answer = {
@@ -430,8 +474,32 @@ class GetProblem(APIView):
                 if my_response.answer:
                     my_answer['answer'] = my_response.answer.answer_text
                 else:
-                    my_answer['answer'] = "Abstain"
-            return Response({ "error": False, 'my_answer': my_answer, 'num_answers': problem.article.num_poll_responses, 'abstentions': num_abstentions, 'answers': answers, 'slug': problem.article.slug, 'description': content, 'type': problem.poll_type, 'lin_str': problem.hand.lin_str(), 'author': name, 'avatar': avatar, 'scoring': problem.scoring, 'vulnerability': problem.vul, 'auction': problem.auction, 'dealer': problem.dealer})
+                    my_answer['answer'] = "Abstain"            
+            for answer in answerMap:
+                if answer.answer_count > 0:
+                    if answer.answer_text.lower() == my_answer['answer'].lower():
+                        my_answer['count'] = answer.answer_count;
+                    answers.append( { 'text': answer.answer_text, 'count':answer.answer_count } )
+            item = {
+                'my_answer': my_answer,
+                'num_answers': problem.article.num_poll_responses,
+                'abstentions': num_abstentions,
+                'num_abstentions': num_abstentions,
+                'answers': answers,
+                'slug': problem.article.slug,
+                'description': content,
+                'type': problem.poll_type,
+                'lin_str': problem.hand.lin_str(),
+                'author': name,
+                'avatar': avatar,
+                'scoring': problem.scoring,
+                'vulnerability': problem.vul,
+                'auction': problem.auction,
+                'dealer': problem.dealer
+            }
+            item["error"] = False
+
+            return Response( item )
         except Exception as e:
             return Response( { "error": True, "message": e.message } )          
 
